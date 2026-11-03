@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shopping Cart MCP Server: Technical Specification</title>
+<style>
+:root{--bg:#faf9f6;--fg:#1c1c1a;--mut:#66665f;--card:#fff;--bd:#e2e0d8;--ac:#2a5bd7;--acbg:#e8eefc;--ok:#1f8a5b;--wn:#a86a0c;--code:#f1efe9;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15161a;--fg:#ecebe6;--mut:#a1a19a;--card:#1d1f25;--bd:#30323a;--ac:#8fb0ff;--acbg:#232b42;--ok:#4cc38a;--wn:#e0a64a;--code:#262932;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#15161a;--fg:#ecebe6;--mut:#a1a19a;--card:#1d1f25;--bd:#30323a;--ac:#8fb0ff;--acbg:#232b42;--ok:#4cc38a;--wn:#e0a64a;--code:#262932;color-scheme:dark}
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 56px);scroll-behavior:smooth}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--card);z-index:10}
+nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:var(--card);border-bottom:1px solid var(--bd);display:flex;gap:4px;overflow-x:auto;padding:8px 12px}
+nav a{color:var(--mut);text-decoration:none;padding:6px 12px;border-radius:8px;white-space:nowrap;font-size:14px}
+nav a:hover{background:var(--acbg);color:var(--ac)}
+main{max-width:980px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:28px;line-height:1.2;margin:8px 0 6px}
+h2{font-size:22px;margin:48px 0 12px;padding-top:8px}
+h3{font-size:16px;margin:20px 0 6px}
+p{margin:8px 0}.mut{color:var(--mut)}
+.tag{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;background:var(--acbg);color:var(--ac);margin-right:4px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px 16px}
+.card h3{margin-top:0}
+.wrap{overflow-x:auto;border:1px solid var(--bd);border-radius:12px;background:var(--card)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--bd);vertical-align:top}
+th{color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+tr:last-child td{border-bottom:0}
+code,pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+code{background:var(--code);padding:1px 5px;border-radius:5px}
+pre{background:var(--code);padding:12px;border-radius:10px;overflow-x:auto;margin:8px 0}
+.note{border-left:4px solid var(--wn);background:var(--card);padding:10px 14px;border-radius:0 10px 10px 0;margin:12px 0}
+.tools{display:grid;grid-template-columns:230px 1fr;gap:12px}
+@media (max-width:700px){.tools{grid-template-columns:1fr}}
+.tl{display:flex;flex-direction:column;gap:4px}
+.tl button{font:inherit;font-size:14px;text-align:left;padding:8px 10px;border:1px solid var(--bd);background:var(--card);color:var(--fg);border-radius:8px;cursor:pointer}
+.tl button[aria-pressed="true"]{border-color:var(--ac);background:var(--acbg);color:var(--ac)}
+.bar{height:10px;background:var(--code);border-radius:99px;overflow:hidden;margin:6px 0 14px}
+.bar i{display:block;height:100%;width:0;background:var(--ok);transition:width .25s}
+.grp{margin:14px 0 4px;font-weight:600}
+label.ck{display:flex;gap:10px;align-items:flex-start;padding:6px 0;cursor:pointer;font-size:15px}
+label.ck input{margin-top:5px;width:16px;height:16px;accent-color:var(--ok)}
+svg text{fill:var(--fg);font:12px system-ui,sans-serif}
+svg .b{fill:var(--card);stroke:var(--bd);stroke-width:1.5}
+svg .a{fill:var(--acbg);stroke:var(--ac);stroke-width:1.5}
+svg .g{fill:none;stroke:var(--mut);stroke-width:1.5}
+svg .d{stroke-dasharray:4 3}
+svg .s{fill:var(--mut);font-size:10.5px}
+.mermaid{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;overflow-x:auto}
+</style>
+</head>
+<body>
+<nav><a href="#overview">Overview</a><a href="#architecture">Architecture</a><a href="#tools">MCP tools</a><a href="#backend">Backend changes</a><a href="#security">Security</a><a href="#checklist">Checklist</a></nav>
+<main>
+<section id="overview">
+<span class="tag">Demo application</span><span class="tag">v0.1</span><span class="tag">ChatGPT first</span>
+<h1>Shopping Cart MCP Server</h1>
+<p class="mut">Technical specification for exposing the shopping-cart microservices to LLMs through the Model Context Protocol, with authenticated users, a real cart, and a safe checkout.</p>
+<div class="card"><h3>The idea in one analogy</h3><p>Think of a restaurant. The LLM is the customer, the backend services are the kitchen, and the <strong>MCP server is the waiter</strong>. The customer can only order what is on the menu (the tools), the waiter checks who is sitting at the table (OAuth token), and the waiter never lets the customer walk into the kitchen or name their own price.</p></div>
+<h3>Goals</h3>
+<div class="grid">
+<div class="card"><h3>In scope</h3><p>Search products, manage a cart, check out, track order status. OAuth 2.1 login via a demo Spring Security auth server. One remote MCP server, ChatGPT as first client, adapters for Claude and Gemini after.</p></div>
+<div class="card"><h3>Out of scope</h3><p>Real payments (the credit-limit approval flow stands in), admin catalog tools, multi-tenant stores, inventory reservation across warehouses.</p></div>
+<div class="card"><h3>Teaching value</h3><p>Shows each MCP concept end to end: tools with schemas, annotations, resource-server auth, structured results, and human confirmation for risky actions.</p></div>
+</div>
+<h3>Key decisions</h3>
+<div class="wrap"><table>
+<tr><th>Area</th><th>Decision</th><th>Why</th></tr>
+<tr><td>MCP server</td><td>Spring Boot 3, Java 17, Spring AI MCP server, Streamable HTTP at <code>/mcp</code></td><td>Matches the existing Java stack; remote HTTP is what hosted LLM clients need</td></tr>
+<tr><td>Auth</td><td>Spring Authorization Server (demo users), OAuth 2.1 code flow with PKCE, JWT access tokens</td><td>MCP treats the server as an OAuth resource server</td></tr>
+<tr><td>Identity</td><td>Customer ID always comes from the token <code>sub</code> claim, never from tool input</td><td>Stops one user acting as another</td></tr>
+<tr><td>Cart</td><td>New cart service with server-side price snapshots and a version number</td><td>Existing APIs have no cart and trust client-sent prices</td></tr>
+<tr><td>Checkout</td><td>Two-step: preview, then confirm, with an idempotency key</td><td>The LLM must get explicit user approval and a retry must not double-order</td></tr>
+<tr><td>Multi-LLM</td><td>Core tool layer plus thin per-client adapters</td><td>Client quirks stay out of business logic</td></tr>
+</table></div>
+<div class="note"><strong>Assumption to confirm:</strong> ChatGPT needs a public HTTPS URL for the MCP server. For the demo, use a tunnel (for example ngrok) or a small cloud deploy. Check OpenAI’s current connector requirements before Phase 4.</div>
+</section>
+
+<section id="architecture">
+<h2>Architecture</h2>
+<div class="wrap" style="padding:8px"><svg viewBox="0 0 760 300" style="min-width:680px;width:100%" role="img" aria-label="Architecture diagram">
+<defs><marker id="m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--mut)"/></marker></defs>
+<text class="s" x="10" y="20">LLM CLIENTS</text><text class="s" x="170" y="20">MCP LAYER</text><text class="s" x="345" y="20">EDGE</text><text class="s" x="495" y="20">SERVICES</text>
+<rect class="b" x="10" y="40" width="120" height="40" rx="8"/><text x="70" y="64" text-anchor="middle">ChatGPT (first)</text>
+<rect class="b" x="10" y="100" width="120" height="40" rx="8"/><text x="70" y="124" text-anchor="middle">Claude</text>
+<rect class="b" x="10" y="160" width="120" height="40" rx="8"/><text x="70" y="184" text-anchor="middle">Gemini</text>
+<rect class="a" x="170" y="50" width="150" height="150" rx="10"/><text x="245" y="80" text-anchor="middle" style="font-weight:600">MCP Server</text><text class="s" x="245" y="100" text-anchor="middle">Streamable HTTP /mcp</text><text class="s" x="245" y="122" text-anchor="middle">9 tools + schemas</text><text class="s" x="245" y="140" text-anchor="middle">OAuth resource server</text><text class="s" x="245" y="158" text-anchor="middle">Client adapters</text><text class="s" x="245" y="176" text-anchor="middle">Output sanitizing</text>
+<rect class="b" x="345" y="50" width="110" height="150" rx="10"/><text x="400" y="100" text-anchor="middle" style="font-weight:600">API Gateway</text><text class="s" x="400" y="120" text-anchor="middle">Spring Cloud</text><text class="s" x="400" y="136" text-anchor="middle">Gateway</text><text class="s" x="400" y="156" text-anchor="middle">JWT check</text><text class="s" x="400" y="172" text-anchor="middle">Rate limits</text>
+<rect class="b" x="495" y="30" width="130" height="38" rx="8"/><text x="560" y="53" text-anchor="middle">Product service</text>
+<rect class="a" x="495" y="84" width="130" height="38" rx="8"/><text x="560" y="107" text-anchor="middle">Cart service (new)</text>
+<rect class="b" x="495" y="138" width="130" height="38" rx="8"/><text x="560" y="161" text-anchor="middle">Order service</text>
+<rect class="b" x="495" y="192" width="130" height="38" rx="8"/><text x="560" y="215" text-anchor="middle">Customer service</text>
+<rect class="b" x="655" y="138" width="95" height="92" rx="8"/><text x="702" y="180" text-anchor="middle" style="font-weight:600">Kafka</text><text class="s" x="702" y="198" text-anchor="middle">order events</text>
+<rect class="a" x="170" y="236" width="150" height="48" rx="10"/><text x="245" y="258" text-anchor="middle" style="font-weight:600">Auth Server</text><text class="s" x="245" y="274" text-anchor="middle">Spring Authorization Server</text>
+<path class="g" marker-end="url(#m)" d="M130 60H168M130 120H168M130 180H168M320 125H343M455 125H493M455 125L493 49M455 125L493 157M455 125L493 211"/>
+<path class="g" marker-end="url(#m)" d="M625 157H653M625 211H653"/>
+<path class="g d" marker-end="url(#m)" d="M245 202V234"/><text class="s" x="252" y="222">JWKS / login</text>
+</svg></div>
+<h3>Responsibilities</h3>
+<div class="wrap"><table>
+<tr><th>Component</th><th>Responsibility</th></tr>
+<tr><td>MCP server</td><td>Publishes tools, validates the bearer token, maps token to customer, calls the gateway, trims and sanitizes results before the model sees them</td></tr>
+<tr><td>Auth server</td><td>Demo login page, consent for scopes, issues short-lived JWTs (audience = MCP server), publishes JWKS and metadata</td></tr>
+<tr><td>Gateway</td><td>Replaces end-of-life Zuul. Validates JWT again, forwards <code>X-Customer-Id</code> from the token, rate limits per user</td></tr>
+<tr><td>Cart service</td><td>One open cart per customer, line items with price snapshot, version counter, expiry</td></tr>
+<tr><td>Order / Customer</td><td>Order creation from a cart, Kafka credit check, status updates, as today but with fixes below</td></tr>
+</table></div>
+<h3>Checkout sequence</h3>
+<pre class="mermaid">sequenceDiagram
+participant L as LLM
+participant M as MCP Server
+participant O as Order Service
+participant K as Kafka
+participant C as Customer Service
+L->>M: checkout(cartVersion, confirm=false)
+M-->>L: Preview with items and total
+L->>L: Ask the user to confirm
+L->>M: checkout(cartVersion, confirm=true)
+M->>O: Create order from cart (server prices)
+O->>K: ORDER_CREATED
+K->>C: Credit limit check
+C->>K: ORDER_APPROVED or ORDER_REJECTED
+K->>O: Update order status
+L->>M: get_order_status(orderId)
+M-->>L: APPROVED</pre>
+</section>
+
+<section id="tools">
+<h2>MCP tools</h2>
+<p class="mut">Select a tool to see its contract. Read-only tools carry <code>readOnlyHint</code> so clients can skip confirmation prompts for them.</p>
+<div class="tools"><div class="tl" id="tl"></div><div class="card" id="td"></div></div>
+</section>
+
+<section id="backend">
+<h2>Backend changes to the existing APIs</h2>
+<div class="wrap"><table>
+<tr><th>Service</th><th>Today</th><th>Change</th></tr>
+<tr><td>Product</td><td>No price, no search, delete and update open</td><td>Add <code>price</code> (decimal), <code>description</code>, <code>stock</code>. Add <code>GET /products?query=&amp;category=&amp;maxPrice=&amp;limit=</code> with paging. Admin writes need <code>ROLE_ADMIN</code></td></tr>
+<tr><td>Cart (new)</td><td>None</td><td><code>GET /carts/me</code>, <code>POST /carts/me/items</code>, <code>PUT/DELETE /carts/me/items/{productId}</code>. Fields: <code>version</code>, items with <code>unitPrice</code> snapshot, <code>subtotal</code></td></tr>
+<tr><td>Order</td><td>Single product, client sets price and customer, status typo “PEDNING”</td><td><code>POST /orders</code> takes <code>cartId</code>, <code>cartVersion</code>, <code>Idempotency-Key</code>. Multi-line items, server-side prices, enum status <code>PENDING, APPROVED, REJECTED</code>, JSON Kafka events with a schema, <code>GET /orders/me</code></td></tr>
+<tr><td>Customer</td><td>List-all and delete exposed, credit limit readable</td><td>Replace with <code>GET /customers/me</code>; remove list-all; keep credit check internal</td></tr>
+<tr><td>Gateway</td><td>Zuul, no auth</td><td>Spring Cloud Gateway, JWT resource server, per-user rate limit</td></tr>
+<tr><td>Platform</td><td>Spring Boot 2.1 to 2.3, <code>ddl-auto=create</code>, H2</td><td>Spring Boot 3 / Java 17, Flyway migrations, seeded demo data</td></tr>
+</table></div>
+<h3>Cart contract (example)</h3>
+<pre>{
+  "cartId": "c-1042", "version": 3, "currency": "USD",
+  "items": [{ "productId": "101", "name": "Galaxy M30", "qty": 1, "unitPrice": 150.00 }],
+  "subtotal": 150.00
+}</pre>
+</section>
+
+<section id="security">
+<h2>Security and trust</h2>
+<h3>Authentication flow</h3>
+<pre class="mermaid">sequenceDiagram
+participant U as User
+participant C as ChatGPT
+participant M as MCP Server
+participant A as Auth Server
+C->>M: POST /mcp without token
+M-->>C: 401 with protected resource metadata
+C->>A: Discover, register client, start PKCE flow
+A->>U: Login and consent for scopes
+U-->>A: Approve
+A-->>C: Access token (JWT, audience = MCP server)
+C->>M: tools/call with bearer token
+M->>M: Validate JWT, map sub to customerId</pre>
+<p><strong>Scopes:</strong> <code>cart:read</code>, <code>cart:write</code>, <code>orders:read</code>, <code>orders:write</code> (checkout). Tokens live 15 minutes; refresh tokens are optional for the demo. The MCP server must not forward the user’s token to other services unchanged; it exchanges or re-issues a downstream token with the right audience.</p>
+<h3>Threats and controls</h3>
+<div class="wrap"><table>
+<tr><th>Threat</th><th>Control</th></tr>
+<tr><td>Model or user supplies a fake price or another customer’s ID</td><td>Prices and customer come only from the server and the token; tools have no such inputs</td></tr>
+<tr><td>Order placed without user intent (prompt injection, model error)</td><td>Two-step checkout, <code>destructiveHint</code>, cap on order total and on items per cart</td></tr>
+<tr><td>Prompt injection through product text</td><td>Treat tool output as untrusted data: strip markup, length limits, structured JSON only</td></tr>
+<tr><td>Duplicate order on retry</td><td>Idempotency key = cart ID + cart version; stale versions are rejected</td></tr>
+<tr><td>Access to other users’ carts or orders</td><td>All queries filtered by token <code>sub</code>; integration tests for cross-user access</td></tr>
+<tr><td>Abuse or runaway tool loops</td><td>Per-user rate limits at the gateway, quantity limits in tool schemas</td></tr>
+<tr><td>Leaked secrets</td><td>Remove <code>docker/aws-ec2</code> private key from the repo and git history, rotate it if it was ever used, move credentials to environment variables</td></tr>
+</table></div>
+</section>
+
+<section id="checklist">
+<h2>Delivery checklist</h2>
+<p class="mut">Tick items as you complete them. Progress is saved in this browser only.</p>
+<strong id="pc">0%</strong><div class="bar"><i id="pb"></i></div>
+<div id="cl"></div>
+</section>
+</main>
+<script>
+const T=[
+{n:"search_products",s:"any valid token",h:"readOnlyHint",d:"Search the catalog by keyword, category or price ceiling.",i:{query:"string, optional",category:"string, optional",maxPrice:"number, optional",limit:"integer 1-20, default 10"},o:"[{ productId, name, category, price, inStock }]"},
+{n:"get_product",s:"any valid token",h:"readOnlyHint",d:"Get full details for one product.",i:{productId:"string, required"},o:"{ productId, name, description, price, stock }"},
+{n:"view_cart",s:"cart:read",h:"readOnlyHint",d:"Show the current user’s cart with totals and version.",i:{},o:"{ cartId, version, items[], subtotal }"},
+{n:"add_to_cart",s:"cart:write",h:"idempotentHint false",d:"Add a product to the cart. Price is looked up by the server.",i:{productId:"string, required",quantity:"integer 1-10, default 1"},o:"updated cart"},
+{n:"update_cart_item",s:"cart:write",h:"idempotentHint true",d:"Set the quantity of a line item.",i:{productId:"string, required",quantity:"integer 1-10"},o:"updated cart"},
+{n:"remove_from_cart",s:"cart:write",h:"destructiveHint false",d:"Remove a line item from the cart.",i:{productId:"string, required"},o:"updated cart"},
+{n:"checkout",s:"orders:write",h:"destructiveHint true",d:"Preview or place an order. Always call with confirm=false first, show the summary, and only call with confirm=true after the user explicitly agrees.",i:{cartVersion:"integer, required",confirm:"boolean, default false"},o:"confirm=false: { preview, total }; confirm=true: { orderId, status: PENDING }"},
+{n:"get_order_status",s:"orders:read",h:"readOnlyHint",d:"Check an order. Do not tell the user it is placed until the status is APPROVED.",i:{orderId:"string, required"},o:"{ orderId, status, total, items[] }"},
+{n:"list_orders",s:"orders:read",h:"readOnlyHint",d:"List the user’s recent orders.",i:{limit:"integer 1-20, default 5"},o:"[{ orderId, status, total, createdAt }]"}];
+const tl=document.getElementById("tl"),td=document.getElementById("td");
+function showTool(k){[...tl.children].forEach((b,j)=>b.setAttribute("aria-pressed",j===k));const t=T[k];
+td.innerHTML="<h3><code></code></h3><p></p><p class='mut'>Scope: <strong></strong> · Annotation: <code></code></p><h3>Input</h3><pre></pre><h3>Output</h3><pre></pre>";
+const q=td.querySelectorAll.bind(td);q("code")[0].textContent=t.n;q("p")[0].textContent=t.d;q("strong")[0].textContent=t.s;q("code")[1].textContent=t.h;
+q("pre")[0].textContent=JSON.stringify(t.i,null,2);q("pre")[1].textContent=t.o}
+T.forEach((t,k)=>{const b=document.createElement("button");b.textContent=t.n;b.onclick=()=>showTool(k);tl.appendChild(b)});showTool(0);
+const G=[["Phase 0: Hygiene",["Remove the private key from the repo and git history; rotate it","Upgrade to Java 17 and Spring Boot 3; replace Zuul with Spring Cloud Gateway","Replace ddl-auto=create with Flyway migrations and seed data"]],
+["Phase 1: Authentication",["Auth server with demo users, PKCE, consent and JWKS","Resource-server JWT validation in gateway and MCP server","Scopes enforced per tool; /me endpoints in place of list-all"]],
+["Phase 2: Cart and catalog",["Add price, stock and search to the product service","Build the cart service with price snapshots and versioning","Rework orders to be created from a cart with an idempotency key","Fix status enum and publish JSON order events"]],
+["Phase 3: MCP server",["Implement the nine tools with JSON schemas and annotations","Structured, trimmed, sanitized tool results","Two-step checkout with order and cart limits"]],
+["Phase 4: ChatGPT integration",["Expose the server over HTTPS (tunnel or small deploy)","Connect from ChatGPT and complete the OAuth login","Run the demo script: search, add, view, preview, confirm, status"]],
+["Phase 5: Adapters and quality",["Define the adapter interface; add Claude and Gemini adapters","Integration tests including cross-user access attempts","Rate limits, structured logs and a README with the demo walk-through"]]];
+let S={};try{S=JSON.parse(localStorage.getItem("mcp-spec-checks")||"{}")}catch(e){}
+const cl=document.getElementById("cl");let N=0;
+G.forEach((g,gi)=>{const h=document.createElement("div");h.className="grp";h.textContent=g[0];cl.appendChild(h);
+g[1].forEach((x,xi)=>{N++;const id=gi+"-"+xi,l=document.createElement("label"),c=document.createElement("input"),s=document.createElement("span");
+l.className="ck";c.type="checkbox";c.checked=!!S[id];s.textContent=x;l.append(c,s);cl.appendChild(l);
+c.onchange=()=>{S[id]=c.checked;try{localStorage.setItem("mcp-spec-checks",JSON.stringify(S))}catch(e){}up()}})});
+function up(){const d=Object.values(S).filter(Boolean).length,p=Math.round(d/N*100);document.getElementById("pc").textContent=p+"% ("+d+" of "+N+")";document.getElementById("pb").style.width=p+"%"}up();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>
+try{const dk=matchMedia("(prefers-color-scheme: dark)").matches;mermaid.initialize({startOnLoad:true,theme:dk?"dark":"default",securityLevel:"strict"})}catch(e){}
+</script>
+</body>
+</html>
