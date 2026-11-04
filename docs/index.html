@@ -54,7 +54,7 @@ svg .s{fill:var(--mut);font-size:10.5px}
 </style>
 </head>
 <body>
-<nav><a href="#overview">Overview</a><a href="#architecture">Architecture</a><a href="#tools">MCP tools</a><a href="#backend">Backend changes</a><a href="#security">Security</a><a href="#checklist">Checklist</a></nav>
+<nav><a href="#overview">Overview</a><a href="#architecture">Architecture</a><a href="#tools">MCP tools</a><a href="#backend">Backend changes</a><a href="#security">Security</a><a href="#clients">Clients</a><a href="#checklist">Checklist</a></nav>
 <main>
 <section id="overview">
 <span class="tag">Demo application</span><span class="tag">v0.1</span><span class="tag">ChatGPT first</span>
@@ -184,6 +184,23 @@ M->>M: Validate JWT, map sub to customerId</pre>
 </table></div>
 </section>
 
+<section id="clients">
+<h2>Connecting Claude and Gemini</h2>
+<p class="mut">One set of tools, one server. Only the published tool schemas differ by client (the adapter layer), and every call is still validated against the full rules.</p>
+<div class="wrap"><table>
+<tr><th>Client</th><th>How it connects</th><th>What to know</th></tr>
+<tr><td>Claude.ai and Desktop</td><td>Custom connector with the server URL</td><td>Requests come from Anthropic’s cloud, so the URL must be public HTTPS. OAuth with dynamic client registration, or a manually entered client ID and secret. Allow the callback <code>https://claude.ai/api/mcp/auth_callback</code> (it may move to claude.com)</td></tr>
+<tr><td>Claude API</td><td><code>mcp_servers</code> plus <code>mcp_toolset</code>, beta <code>mcp-client-2025-11-20</code></td><td>The caller obtains and refreshes the access token and passes it as <code>authorization_token</code></td></tr>
+<tr><td>Claude Code</td><td><code>claude mcp add --transport http</code></td><td>Bearer header, or OAuth through the <code>/mcp</code> command</td></tr>
+<tr><td>Gemini API</td><td><code>mcp_server</code> tool in the Interactions API</td><td>Streamable HTTP only, with <code>url</code>, <code>headers</code>, optional <code>allowed_tools</code>. Send <code>X-Client-Profile: gemini</code>. Use a stable HTTPS host, since temporary tunnels may be rejected</td></tr>
+<tr><td>Gemini CLI</td><td><code>mcpServers</code> in <code>settings.json</code></td><td><code>httpUrl</code> plus <code>headers</code></td></tr>
+</table></div>
+<h3>Why Gemini gets its own schema profile</h3>
+<p>Gemini function declarations accept an OpenAPI-style subset of JSON Schema, and unsupported keywords can fail a whole request with a generic 400. The <strong>gemini</strong> profile removes <code>anyOf</code>, <code>pattern</code>, numeric bounds, defaults and titles from the published schema and moves limits into each parameter’s description (for example “Allowed: 1 to 10”). The <strong>standard</strong> profile keeps the full schema.</p>
+<p>The profile is chosen by the <code>X-Client-Profile</code> header, then the MCP client name, then the <code>CLIENT_PROFILE</code> setting. <code>shopping-cart-compat-check</code> shows what a client sees and flags incompatibilities.</p>
+<div class="note"><strong>Not yet verified live:</strong> the Claude and Gemini connection snippets in the repo’s <code>examples/</code> folder follow the vendors’ current documentation but were not run against their live APIs. The Gemini details come from Google announcements and third-party docs, so check Google’s Interactions API reference before relying on exact field names. The Spring authorization server must support dynamic client registration for the Claude connector flow.</div>
+</section>
+
 <section id="checklist">
 <h2>Delivery checklist</h2>
 <p class="mut">Tick items as you complete them. Progress is saved in this browser only.</p>
@@ -213,7 +230,7 @@ const G=[["Phase 0: Hygiene",["Remove the private key from the repo and git hist
 ["Phase 2: Cart and catalog",["Add price, stock and search to the product service","Build the cart service with price snapshots and versioning","Rework orders to be created from a cart with an idempotency key","Fix status enum and publish JSON order events"]],
 ["Phase 3: MCP server",["Implement the nine tools with JSON schemas and annotations","Structured, trimmed, sanitized tool results","Two-step checkout with order and cart limits"]],
 ["Phase 4: ChatGPT integration",["Expose the server over HTTPS (tunnel or small deploy)","Connect from ChatGPT and complete the OAuth login","Run the demo script: search, add, view, preview, confirm, status"]],
-["Phase 5: Adapters and quality",["Define the adapter interface; add Claude and Gemini adapters","Integration tests including cross-user access attempts","Rate limits, structured logs and a README with the demo walk-through"]]];
+["Phase 5: Adapters and quality",["Client profiles for Claude (standard) and Gemini (compatible schema) are built; test each against the live client","Integration tests including cross-user access attempts","Rate limits, structured logs and a README with the demo walk-through"]]];
 let S={};try{S=JSON.parse(localStorage.getItem("mcp-spec-checks")||"{}")}catch(e){}
 const cl=document.getElementById("cl");let N=0;
 G.forEach((g,gi)=>{const h=document.createElement("div");h.className="grp";h.textContent=g[0];cl.appendChild(h);

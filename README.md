@@ -32,10 +32,33 @@ shopping-cart-devtoken mint alice   # prints a test access token
 
 Try it with the MCP Inspector (`npx @modelcontextprotocol/inspector`), pointing it at `http://127.0.0.1:8000/mcp` with header `Authorization: Bearer <token>`. For ChatGPT, expose the server over HTTPS (for example with a tunnel), set `PUBLIC_URL` to that address, and point `OAUTH_ISSUER` at your authorization server.
 
+## Connecting clients
+
+One set of tools serves every LLM. Only the *published tool schemas* differ per client (see `adapters.py`): Gemini gets a conservative schema because its function declarations accept an OpenAPI subset. The server still validates every call against the full rules.
+
+| Client | How it connects | Notes |
+|---|---|---|
+| **Claude.ai / Claude Desktop** | Settings, Connectors, add custom connector with the server URL | Calls come from Anthropic's cloud, so the URL must be public HTTPS. Uses OAuth: your authorization server needs dynamic client registration, or enter a client ID and secret under Advanced settings. Allow the callback `https://claude.ai/api/mcp/auth_callback` (Anthropic notes it may move to `claude.com`) |
+| **Claude API** | `mcp_servers` plus an `mcp_toolset`, beta `mcp-client-2025-11-20` | You obtain and refresh the access token. See `examples/claude_api.py` |
+| **Claude Code** | `claude mcp add --transport http ...` | See `examples/claude_code.sh` |
+| **Gemini API** | `mcp_server` tool in the Interactions API with `url` and `headers` | Streamable HTTP only. Send `X-Client-Profile: gemini`. Use a stable HTTPS host. See `examples/gemini_interactions.py` |
+| **Gemini CLI** | `mcpServers` in `settings.json` with `httpUrl` and `headers` | See `examples/gemini_cli_settings.json` |
+| **ChatGPT** | Developer mode connector with the server URL | Planned next |
+
+Profile selection order: `X-Client-Profile` header, then the MCP client name (anything containing "gemini" or "google"), then `CLIENT_PROFILE` (default `standard`).
+
+Check what a client will see, and catch Gemini-incompatible schemas, with:
+
+```bash
+shopping-cart-compat-check http://127.0.0.1:8000/mcp --token "$TOKEN" --profile gemini
+```
+
+The Claude and Gemini examples have not been run against the live vendor APIs from this repo; verify them with your own keys.
+
 ## Tests
 
 ```bash
-pytest -q    # 18 tests: token checks, scopes, cart, checkout, isolation, limits
+pytest -q    # 32 tests: token checks, scopes, cart, checkout, isolation, limits, client profiles
 ```
 
 ## Layout
@@ -47,7 +70,10 @@ src/shopping_cart_mcp/
   backend.py       backend client; mints short-lived downstream tokens
   sanitize.py      cleans untrusted store text
   mock_backend.py  demo stand-in for the Spring services (follows the spec contract)
+  adapters.py      per-client tool-schema profiles (standard, gemini)
+  compat_check.py  CLI that shows what a client sees and flags incompatibilities
   devtools.py      key generation and token minting for local development
+examples/          connection snippets for Claude and Gemini
 docs/              technical specification (GitHub Pages)
 ```
 

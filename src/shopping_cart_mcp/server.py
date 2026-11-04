@@ -10,6 +10,7 @@ from fastmcp.server.auth import require_scopes
 from fastmcp.server.auth.providers.jwt import JWTVerifier
 from pydantic import Field
 
+from .adapters import ClientProfileMiddleware
 from .auth import build_auth, current_customer
 from .backend import Backend, BackendError
 from .config import Settings
@@ -75,7 +76,8 @@ def build_server(settings: Settings, backend: Backend | None = None,
                  verifier: JWTVerifier | None = None) -> FastMCP:
     backend = backend or Backend(settings)
     mcp = FastMCP("Shopping Cart", instructions=INSTRUCTIONS,
-                  auth=build_auth(settings, verifier), mask_error_details=True)
+                  auth=build_auth(settings, verifier), mask_error_details=True,
+                  middleware=[ClientProfileMiddleware(settings.client_profile)])
 
     async def call(method: str, path: str, **kw: Any) -> Any:
         try:

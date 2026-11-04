@@ -22,6 +22,7 @@ dev = ["pytest>=8", "pytest-asyncio>=0.23", "fastapi>=0.110", "uvicorn>=0.29"]
 shopping-cart-mcp = "shopping_cart_mcp.__main__:main"
 shopping-cart-mock-backend = "shopping_cart_mcp.mock_backend:main"
 shopping-cart-devtoken = "shopping_cart_mcp.devtools:main"
+shopping-cart-compat-check = "shopping_cart_mcp.compat_check:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

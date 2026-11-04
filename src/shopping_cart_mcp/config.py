@@ -24,6 +24,7 @@ class Settings:
     # Safety limits.
     max_order_total: Decimal = Decimal("5000")
     timeout: float = 10.0
+    client_profile: str = "standard"  # default tool-schema dialect: standard | gemini
     host: str = "127.0.0.1"
     port: int = 8000
 
@@ -52,6 +53,7 @@ class Settings:
             dev_public_key_file=e("DEV_PUBLIC_KEY_FILE", d.dev_public_key_file),
             max_order_total=Decimal(e("MAX_ORDER_TOTAL", str(d.max_order_total))),
             timeout=float(e("BACKEND_TIMEOUT", str(d.timeout))),
+            client_profile=e("CLIENT_PROFILE", d.client_profile),
             host=e("HOST", d.host),
             port=int(e("PORT", str(d.port))),
         )
