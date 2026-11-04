@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shopping-cart-mcp-server"
+version = "0.1.0"
+description = "Demo MCP server that lets authenticated users shop through LLMs (FastMCP)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastmcp>=4.1,<5",
+  "httpx>=0.27",
+  "pyjwt[crypto]>=2.8",
+]
+
+[project.optional-dependencies]
+mock = ["fastapi>=0.110", "uvicorn>=0.29"]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "fastapi>=0.110", "uvicorn>=0.29"]
+
+[project.scripts]
+shopping-cart-mcp = "shopping_cart_mcp.__main__:main"
+shopping-cart-mock-backend = "shopping_cart_mcp.mock_backend:main"
+shopping-cart-devtoken = "shopping_cart_mcp.devtools:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]

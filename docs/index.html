@@ -70,14 +70,14 @@ svg .s{fill:var(--mut);font-size:10.5px}
 <h3>Key decisions</h3>
 <div class="wrap"><table>
 <tr><th>Area</th><th>Decision</th><th>Why</th></tr>
-<tr><td>MCP server</td><td>Spring Boot 3, Java 17, Spring AI MCP server, Streamable HTTP at <code>/mcp</code></td><td>Matches the existing Java stack; remote HTTP is what hosted LLM clients need</td></tr>
+<tr><td>MCP server</td><td>Python 3.11+, FastMCP 4, Streamable HTTP at <code>/mcp</code></td><td>FastMCP provides tools, token verification and per-tool scopes; remote HTTP is what hosted LLM clients need. Backend services stay Spring Boot</td></tr>
 <tr><td>Auth</td><td>Spring Authorization Server (demo users), OAuth 2.1 code flow with PKCE, JWT access tokens</td><td>MCP treats the server as an OAuth resource server</td></tr>
 <tr><td>Identity</td><td>Customer ID always comes from the token <code>sub</code> claim, never from tool input</td><td>Stops one user acting as another</td></tr>
 <tr><td>Cart</td><td>New cart service with server-side price snapshots and a version number</td><td>Existing APIs have no cart and trust client-sent prices</td></tr>
 <tr><td>Checkout</td><td>Two-step: preview, then confirm, with an idempotency key</td><td>The LLM must get explicit user approval and a retry must not double-order</td></tr>
 <tr><td>Multi-LLM</td><td>Core tool layer plus thin per-client adapters</td><td>Client quirks stay out of business logic</td></tr>
 </table></div>
-<div class="note"><strong>Assumption to confirm:</strong> ChatGPT needs a public HTTPS URL for the MCP server. For the demo, use a tunnel (for example ngrok) or a small cloud deploy. Check OpenAI’s current connector requirements before Phase 4.</div>
+<div class="note"><strong>Status:</strong> the FastMCP server, a mock backend that follows this contract, and 18 tests are built (see the repo). The Spring changes below are still to do. <strong>Assumption to confirm:</strong> ChatGPT needs a public HTTPS URL for the MCP server. For the demo, use a tunnel (for example ngrok) or a small cloud deploy. Check OpenAI’s current connector requirements before Phase 4.</div>
 </section>
 
 <section id="architecture">
@@ -116,16 +116,16 @@ participant M as MCP Server
 participant O as Order Service
 participant K as Kafka
 participant C as Customer Service
-L->>M: checkout(cartVersion, confirm=false)
+L->>M: checkout(cart_version, confirm=false)
 M-->>L: Preview with items and total
 L->>L: Ask the user to confirm
-L->>M: checkout(cartVersion, confirm=true)
+L->>M: checkout(cart_version, confirm=true)
 M->>O: Create order from cart (server prices)
 O->>K: ORDER_CREATED
 K->>C: Credit limit check
 C->>K: ORDER_APPROVED or ORDER_REJECTED
 K->>O: Update order status
-L->>M: get_order_status(orderId)
+L->>M: get_order_status(order_id)
 M-->>L: APPROVED</pre>
 </section>
 
@@ -193,15 +193,15 @@ M->>M: Validate JWT, map sub to customerId</pre>
 </main>
 <script>
 const T=[
-{n:"search_products",s:"any valid token",h:"readOnlyHint",d:"Search the catalog by keyword, category or price ceiling.",i:{query:"string, optional",category:"string, optional",maxPrice:"number, optional",limit:"integer 1-20, default 10"},o:"[{ productId, name, category, price, inStock }]"},
-{n:"get_product",s:"any valid token",h:"readOnlyHint",d:"Get full details for one product.",i:{productId:"string, required"},o:"{ productId, name, description, price, stock }"},
-{n:"view_cart",s:"cart:read",h:"readOnlyHint",d:"Show the current user’s cart with totals and version.",i:{},o:"{ cartId, version, items[], subtotal }"},
-{n:"add_to_cart",s:"cart:write",h:"idempotentHint false",d:"Add a product to the cart. Price is looked up by the server.",i:{productId:"string, required",quantity:"integer 1-10, default 1"},o:"updated cart"},
-{n:"update_cart_item",s:"cart:write",h:"idempotentHint true",d:"Set the quantity of a line item.",i:{productId:"string, required",quantity:"integer 1-10"},o:"updated cart"},
-{n:"remove_from_cart",s:"cart:write",h:"destructiveHint false",d:"Remove a line item from the cart.",i:{productId:"string, required"},o:"updated cart"},
-{n:"checkout",s:"orders:write",h:"destructiveHint true",d:"Preview or place an order. Always call with confirm=false first, show the summary, and only call with confirm=true after the user explicitly agrees.",i:{cartVersion:"integer, required",confirm:"boolean, default false"},o:"confirm=false: { preview, total }; confirm=true: { orderId, status: PENDING }"},
-{n:"get_order_status",s:"orders:read",h:"readOnlyHint",d:"Check an order. Do not tell the user it is placed until the status is APPROVED.",i:{orderId:"string, required"},o:"{ orderId, status, total, items[] }"},
-{n:"list_orders",s:"orders:read",h:"readOnlyHint",d:"List the user’s recent orders.",i:{limit:"integer 1-20, default 5"},o:"[{ orderId, status, total, createdAt }]"}];
+{n:"search_products",s:"any valid token",h:"readOnlyHint",d:"Search the catalog by keyword, category or price ceiling.",i:{query:"string, optional",category:"string, optional",max_price:"number, optional",limit:"integer 1-20, default 10"},o:"[{ product_id, name, category, price, in_stock }]"},
+{n:"get_product",s:"any valid token",h:"readOnlyHint",d:"Get full details for one product.",i:{product_id:"string, required"},o:"{ product_id, name, description, price, stock }"},
+{n:"view_cart",s:"cart:read",h:"readOnlyHint",d:"Show the current user’s cart with totals and version.",i:{},o:"{ cart_id, version, items[], subtotal }"},
+{n:"add_to_cart",s:"cart:write",h:"idempotentHint false",d:"Add a product to the cart. Price is looked up by the server.",i:{product_id:"string, required",quantity:"integer 1-10, default 1"},o:"updated cart"},
+{n:"update_cart_item",s:"cart:write",h:"idempotentHint true",d:"Set the quantity of a line item.",i:{product_id:"string, required",quantity:"integer 1-10"},o:"updated cart"},
+{n:"remove_from_cart",s:"cart:write",h:"destructiveHint false",d:"Remove a line item from the cart.",i:{product_id:"string, required"},o:"updated cart"},
+{n:"checkout",s:"orders:write",h:"destructiveHint true",d:"Preview or place an order. Always call with confirm=false first, show the summary, and only call with confirm=true after the user explicitly agrees.",i:{cart_version:"integer, required",confirm:"boolean, default false"},o:"confirm=false: { preview, total }; confirm=true: { order_id, status: PENDING }"},
+{n:"get_order_status",s:"orders:read",h:"readOnlyHint",d:"Check an order. Do not tell the user it is placed until the status is APPROVED.",i:{order_id:"string, required"},o:"{ order_id, status, total, items[] }"},
+{n:"list_orders",s:"orders:read",h:"readOnlyHint",d:"List the user’s recent orders.",i:{limit:"integer 1-20, default 5"},o:"[{ order_id, status, total, created_at }]"}];
 const tl=document.getElementById("tl"),td=document.getElementById("td");
 function showTool(k){[...tl.children].forEach((b,j)=>b.setAttribute("aria-pressed",j===k));const t=T[k];
 td.innerHTML="<h3><code></code></h3><p></p><p class='mut'>Scope: <strong></strong> · Annotation: <code></code></p><h3>Input</h3><pre></pre><h3>Output</h3><pre></pre>";
