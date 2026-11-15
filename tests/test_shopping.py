@@ -8,6 +8,13 @@ def sc(r):
     return r.structured_content
 
 
+async def preview(c):
+    """Preview the current cart; returns the arguments that place the order."""
+    v = sc(await c.call_tool("view_cart"))["version"]
+    p = sc(await c.call_tool("checkout", {"cart_version": v}))
+    return {"cart_version": v, "confirm": True, "confirmation_token": p["confirmation_token"]}
+
+
 async def test_search_and_get_product(connect):
     async with connect() as c:
         r = sc(await c.call_tool("search_products", {"query": "laptop", "max_price": 1000}))["result"]
@@ -66,7 +73,9 @@ async def test_checkout_preview_then_confirm_then_approved(connect):
         prev = sc(await c.call_tool("checkout", {"cart_version": v}))
         assert prev["stage"] == "preview" and prev["order_id"] is None and prev["total"] == 300.0
         assert sc(await c.call_tool("list_orders"))["result"] == []  # preview created nothing
-        placed = sc(await c.call_tool("checkout", {"cart_version": v, "confirm": True}))
+        placed = sc(await c.call_tool("checkout", {"cart_version": v, "confirm": True,
+                                                   "confirmation_token": prev["confirmation_token"]}))
+        assert placed["confirmation_token"] is None
         assert placed["stage"] == "placed" and placed["status"] == "PENDING"
         assert "Do not tell the user" in placed["message"]
         await asyncio.sleep(0.5)
@@ -75,16 +84,53 @@ async def test_checkout_preview_then_confirm_then_approved(connect):
         assert sc(await c.call_tool("view_cart"))["items"] == []
 
 
-async def test_stale_version_and_no_double_order(connect):
+async def test_confirm_requires_a_token_from_a_preview_of_this_cart(connect):
+    async with connect("alice") as a, connect("bob") as b:
+        await a.call_tool("add_to_cart", {"product_id": "107"})
+        v = sc(await a.call_tool("view_cart"))["version"]
+        for bad in (None, "nope", "9999999999." + "0" * 32):
+            with pytest.raises(ToolError, match="confirmation_token"):
+                await a.call_tool("checkout", {"cart_version": v, "confirm": True, "confirmation_token": bad})
+        await b.call_tool("add_to_cart", {"product_id": "107"})
+        bobs = await preview(b)
+        with pytest.raises(ToolError, match="confirmation_token"):  # another user's token
+            await a.call_tool("checkout", {**bobs, "cart_version": v})
+        stale = await preview(a)
+        await a.call_tool("add_to_cart", {"product_id": "107"})
+        with pytest.raises(ToolError, match="changed"):  # cart edited after the preview
+            await a.call_tool("checkout", stale)
+        with pytest.raises(ToolError, match="confirmation_token"):  # old token, new version
+            await a.call_tool("checkout", {**stale, "cart_version": v + 2})
+        assert sc(await a.call_tool("list_orders"))["result"] == []
+
+
+async def test_repeating_confirm_returns_the_same_order(connect):
     async with connect() as c:
-        await c.call_tool("add_to_cart", {"product_id": "107"})
-        v = sc(await c.call_tool("view_cart"))["version"]
-        with pytest.raises(ToolError, match="changed"):
-            await c.call_tool("checkout", {"cart_version": v - 1, "confirm": True})
-        await c.call_tool("checkout", {"cart_version": v, "confirm": True})
-        with pytest.raises(ToolError):  # replaying the same call must not create a second order
-            await c.call_tool("checkout", {"cart_version": v, "confirm": True})
+        await c.call_tool("add_to_cart", {"product_id": "107", "quantity": 2})
+        args = await preview(c)
+        first = sc(await c.call_tool("checkout", args))
+        again = sc(await c.call_tool("checkout", args))  # e.g. a retry after a lost response
+        assert again["order_id"] == first["order_id"] and again["stage"] == "placed"
+        assert again["total"] == 25.0 and [i["quantity"] for i in again["items"]] == [2]
         assert len(sc(await c.call_tool("list_orders"))["result"]) == 1
+
+
+def test_confirmation_token_expires_and_is_bound():
+    from shopping_cart_mcp.confirm import issue_token, verify_token
+    t = issue_token("s" * 40, "alice", "c-1", 3, ttl=600, now=1000)
+    assert verify_token("s" * 40, t, "alice", "c-1", 3, now=1500)
+    assert not verify_token("s" * 40, t, "alice", "c-1", 3, now=1601)   # expired
+    assert not verify_token("s" * 40, t, "alice", "c-1", 4, now=1500)   # other version
+    assert not verify_token("s" * 40, t, "bob", "c-1", 3, now=1500)     # other user
+    assert not verify_token("t" * 40, t, "alice", "c-1", 3, now=1500)   # other key
+    forged = "9999." + t.split(".")[1]
+    assert not verify_token("s" * 40, forged, "alice", "c-1", 3, now=1500)
+
+
+async def test_order_id_parameter_is_described_as_an_order(connect):
+    async with connect() as c:
+        tool = next(t for t in await c.list_tools() if t.name == "get_order_status")
+    assert "Order ID" in tool.input_schema["properties"]["order_id"]["description"]
 
 
 async def test_empty_cart_and_order_cap(connect):
@@ -95,7 +141,7 @@ async def test_empty_cart_and_order_cap(connect):
             await c.call_tool("add_to_cart", {"product_id": "105", "quantity": 1})
         v = sc(await c.call_tool("view_cart"))["version"]  # 5 x 1099 = 5495 > 5000
         with pytest.raises(ToolError, match="limit"):
-            await c.call_tool("checkout", {"cart_version": v, "confirm": True})
+            await c.call_tool("checkout", {"cart_version": v})
         assert sc(await c.call_tool("list_orders"))["result"] == []
 
 
@@ -103,8 +149,7 @@ async def test_credit_limit_rejection(connect):
     async with connect("bob") as c:
         await c.call_tool("add_to_cart", {"product_id": "102"})
         await c.call_tool("add_to_cart", {"product_id": "107"})  # 112.50 > bob's credit of 100
-        v = sc(await c.call_tool("view_cart"))["version"]
-        oid = sc(await c.call_tool("checkout", {"cart_version": v, "confirm": True}))["order_id"]
+        oid = sc(await c.call_tool("checkout", await preview(c)))["order_id"]
         await asyncio.sleep(0.5)
         o = sc(await c.call_tool("get_order_status", {"order_id": oid}))
         assert o["status"] == "REJECTED"
@@ -114,8 +159,7 @@ async def test_users_are_isolated(connect):
     async with connect("alice") as a, connect("bob") as b:
         await a.call_tool("add_to_cart", {"product_id": "107"})
         assert sc(await b.call_tool("view_cart"))["items"] == []
-        v = sc(await a.call_tool("view_cart"))["version"]
-        oid = sc(await a.call_tool("checkout", {"cart_version": v, "confirm": True}))["order_id"]
+        oid = sc(await a.call_tool("checkout", await preview(a)))["order_id"]
         with pytest.raises(ToolError, match="Not found"):
             await b.call_tool("get_order_status", {"order_id": oid})
         assert sc(await b.call_tool("list_orders"))["result"] == []

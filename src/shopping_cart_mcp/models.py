@@ -43,6 +43,7 @@ class CheckoutResult(BaseModel):
     currency: str
     order_id: str | None = None
     status: str | None = None
+    confirmation_token: str | None = None
     message: str
 
 
