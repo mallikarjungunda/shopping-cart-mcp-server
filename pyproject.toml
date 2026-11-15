@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,6 +7,9 @@ name = "shopping-cart-mcp-server"
 version = "0.1.0"
 description = "Demo MCP server that lets authenticated users shop through LLMs (FastMCP)"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+authors = [{ name = "Mallikarjun Gunda" }]
 requires-python = ">=3.11"
 dependencies = [
   "fastmcp>=4.1,<5",
