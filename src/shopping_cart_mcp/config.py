@@ -23,6 +23,7 @@ class Settings:
     dev_public_key_file: str = ".dev/public.pem"
     # Safety limits.
     max_order_total: Decimal = Decimal("5000")
+    confirm_ttl: int = 600  # seconds a checkout preview's confirmation token stays valid
     timeout: float = 10.0
     client_profile: str = "standard"  # default tool-schema dialect: standard | gemini
     host: str = "127.0.0.1"
@@ -52,6 +53,7 @@ class Settings:
             jwks_uri=jwks,
             dev_public_key_file=e("DEV_PUBLIC_KEY_FILE", d.dev_public_key_file),
             max_order_total=Decimal(e("MAX_ORDER_TOTAL", str(d.max_order_total))),
+            confirm_ttl=int(e("CONFIRM_TTL_SECONDS", str(d.confirm_ttl))),
             timeout=float(e("BACKEND_TIMEOUT", str(d.timeout))),
             client_profile=e("CLIENT_PROFILE", d.client_profile),
             host=e("HOST", d.host),

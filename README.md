@@ -13,10 +13,10 @@ Think of it as a waiter: the LLM is the customer, the backend services are the k
 | `search_products`, `get_product` | any valid token | Browse the catalog |
 | `view_cart` | `cart:read` | Show the cart and its version |
 | `add_to_cart`, `update_cart_item`, `remove_from_cart` | `cart:write` | Change the cart |
-| `checkout` | `orders:write` | `confirm=false` previews, `confirm=true` places the order |
+| `checkout` | `orders:write` | `confirm=false` previews and returns a `confirmation_token`; `confirm=true` with that token places the order |
 | `get_order_status`, `list_orders` | `orders:read` | Track orders (PENDING, APPROVED, REJECTED) |
 
-Safety rules built in: the customer ID comes only from the verified token; prices come only from the store; checkout needs the current cart version and is idempotent; order totals are capped; product text is sanitized before the model sees it; tools a token has no scope for are hidden.
+Safety rules built in: the customer ID comes only from the verified token; prices come only from the store; checkout needs the current cart version plus a short-lived token from a preview of that exact cart, and is idempotent (repeating a confirm call returns the same order); order totals are capped; product text is sanitized before the model sees it; tools a token has no scope for are hidden.
 
 ## Quick start (local demo)
 
@@ -58,7 +58,7 @@ The Claude and Gemini examples have not been run against the live vendor APIs fr
 ## Tests
 
 ```bash
-pytest -q    # 32 tests: token checks, scopes, cart, checkout, isolation, limits, client profiles
+pytest -q    # 35 tests: token checks, scopes, cart, checkout, isolation, limits, client profiles
 ```
 
 ## Layout

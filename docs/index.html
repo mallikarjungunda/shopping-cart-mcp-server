@@ -117,9 +117,9 @@ participant O as Order Service
 participant K as Kafka
 participant C as Customer Service
 L->>M: checkout(cart_version, confirm=false)
-M-->>L: Preview with items and total
+M-->>L: Preview with items, total and confirmation_token
 L->>L: Ask the user to confirm
-L->>M: checkout(cart_version, confirm=true)
+L->>M: checkout(cart_version, confirm=true, confirmation_token)
 M->>O: Create order from cart (server prices)
 O->>K: ORDER_CREATED
 K->>C: Credit limit check
@@ -216,7 +216,7 @@ const T=[
 {n:"add_to_cart",s:"cart:write",h:"idempotentHint false",d:"Add a product to the cart. Price is looked up by the server.",i:{product_id:"string, required",quantity:"integer 1-10, default 1"},o:"updated cart"},
 {n:"update_cart_item",s:"cart:write",h:"idempotentHint true",d:"Set the quantity of a line item.",i:{product_id:"string, required",quantity:"integer 1-10"},o:"updated cart"},
 {n:"remove_from_cart",s:"cart:write",h:"destructiveHint false",d:"Remove a line item from the cart.",i:{product_id:"string, required"},o:"updated cart"},
-{n:"checkout",s:"orders:write",h:"destructiveHint true",d:"Preview or place an order. Always call with confirm=false first, show the summary, and only call with confirm=true after the user explicitly agrees.",i:{cart_version:"integer, required",confirm:"boolean, default false"},o:"confirm=false: { preview, total }; confirm=true: { order_id, status: PENDING }"},
+{n:"checkout",s:"orders:write",h:"destructiveHint true",d:"Preview or place an order. Always call with confirm=false first, show the summary, and only call with confirm=true and the preview’s confirmation_token after the user explicitly agrees. Repeating a confirm call returns the same order.",i:{cart_version:"integer, required",confirm:"boolean, default false",confirmation_token:"string, required when confirm=true"},o:"confirm=false: { preview, total, confirmation_token }; confirm=true: { order_id, status: PENDING }"},
 {n:"get_order_status",s:"orders:read",h:"readOnlyHint",d:"Check an order. Do not tell the user it is placed until the status is APPROVED.",i:{order_id:"string, required"},o:"{ order_id, status, total, items[] }"},
 {n:"list_orders",s:"orders:read",h:"readOnlyHint",d:"List the user’s recent orders.",i:{limit:"integer 1-20, default 5"},o:"[{ order_id, status, total, created_at }]"}];
 const tl=document.getElementById("tl"),td=document.getElementById("td");
