@@ -80,3 +80,5 @@ docs/              technical specification (GitHub Pages)
 ## Status
 
 Done: MCP server, mock backend, tests. Next: update the Spring services (cart service, product price, order changes), the Spring Security authorization server, then the ChatGPT connection and Claude/Gemini adapters. The demo downstream token uses a shared HS256 secret; replace it with proper token exchange before any real use.
+
+[![M8ven Score](https://m8ven.ai/badge/mcp/mallikarjungunda-shopping-cart-mcp-server-11sge9?v=fe8d3feb7504aa626e3f14addf397d5b)](https://m8ven.ai/mcp/mallikarjungunda-shopping-cart-mcp-server-11sge9?s=readme)
